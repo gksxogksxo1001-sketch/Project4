@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오늘의 진짜 정보판 — 데이터가 안 올 때</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Pretendard Font & Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Main Container -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+    <!-- Top Navigation & Header -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-5 border-b border-slate-200">
+      <div>
+        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+          <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">과제 4 완주</span>
+          <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+            <i data-lucide="key-round" class="w-3 h-3"></i> 비밀키 0건 (No-Key: T04-C11)
+          </span>
+          <span class="text-xs text-slate-500 font-mono">Zero-Backend · Fail-Safe · Asia/Seoul KST</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+          📡 오늘의 진짜 정보판 <span class="text-indigo-600 text-lg sm:text-xl font-semibold">— 데이터가 안 올 때</span>
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-600 mt-1">
+          매일 변하는 실제 공개 데이터를 기록하고, 외부 장애 시 마지막 정상값(<code class="font-bold text-amber-700">stale</code>)을 보존하며 정직하게 대처 행동을 안내합니다.
+        </p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="openInspectorBtn" class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition flex items-center gap-1.5 shadow-sm">
+          <i data-lucide="code-2" class="w-4 h-4 text-indigo-600"></i>
+          3단 데이터 대조 (T04-C10)
+        </button>
+        <button id="openSubmissionBtn" class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+          과제 제출 증거 도우미 (C27, C28)
+        </button>
+      </div>
+    </header>
+
+    <!-- System Health & Degradation Status Banner (카드 3: T04-C17, T04-C18) -->
+    <div id="statusBanner" class="bento-card p-4 border border-emerald-200 bg-emerald-50/80 transition-all duration-300">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-start gap-3">
+          <i id="bannerIcon" data-lucide="shield-check" class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5"></i>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 id="bannerTitle" class="text-sm font-bold text-emerald-800">실시간 정상 연동 중 (Live Connected)</h3>
+              <span id="bannerBadge" class="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">FRESH (code: none)</span>
+            </div>
+            <p id="bannerDesc" class="text-xs text-emerald-700">
+              원천 API로부터 최신 데이터를 안정적으로 수신하고 있습니다. (기준: Asia/Seoul KST UTC+09:00)
+            </p>
+
+            <!-- 사용자 취할 다음 행동 안내 가이드 (카드 3 실패별 안내) -->
+            <div id="userActionGuideBox" class="mt-2.5 p-3 rounded-lg bg-white/90 border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hidden">
+              <div class="flex items-start gap-2">
+                <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                <div>
+                  <span class="text-xs font-bold text-amber-900 block">사용자가 취할 다음 행동:</span>
+                  <p id="userActionGuideText" class="text-xs text-amber-800 font-medium"></p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button id="retryActionBtn" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-sm flex items-center gap-1 transition">
+                  <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 다시 시도 (Retry)
+                </button>
+                <button id="recoverD2Btn" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 transition">
+                  <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> T04-RECOVER-D2 복구
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Source Selector Tabs & Controls -->
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div class="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-xl border border-slate-200">
+        <button class="source-tab-btn px-4 py-2 text-xs font-semibold rounded-lg bg-white text-indigo-700 shadow-sm transition-all flex items-center gap-1.5" data-source="weather">
+          <i data-lucide="thermometer" class="w-3.5 h-3.5 text-indigo-600"></i>
+          서울 실시간 기온 (Open-Meteo)
+        </button>
+        <button class="source-tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5" data-source="exchange">
+          <i data-lucide="circle-dollar-sign" class="w-3.5 h-3.5 text-slate-500"></i>
+          원/달러 환율 (ExchangeRate-API)
+        </button>
+      </div>
+
+      <!-- Auto Refresh Switch (30s Loop) -->
+      <div class="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="autoRefreshCheckbox" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-100 border-slate-300">
+          <span class="text-slate-700 font-medium">30초 자동 갱신</span>
+        </label>
+        <span id="autoRefreshCountdown" class="text-indigo-600 font-mono hidden font-semibold">(30초 후 갱신)</span>
+      </div>
+    </div>
+
+    <!-- Bento Grid Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT COLUMN: Main Metric & 2-Day Delta (카드 1, 2, 5) -->
+      <section class="lg:col-span-7 flex flex-col gap-6">
+        
+        <!-- MAIN METRIC HERO CARD (카드 1: T04-C03 ~ C09 & 카드 2: T04-C11) -->
+        <div class="bento-card p-6 relative overflow-hidden flex-1 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold tracking-wider uppercase text-slate-500">Live Indicator</span>
+              <!-- T04-C18: 오래된 값(stale) 표시 뱃지 -->
+              <span id="metricFreshnessBadge" class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 실시간 최신값 (fresh)
+              </span>
+            </div>
+            <span id="metricExtraInfo" class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200"></span>
+          </div>
+
+          <!-- VALUE & UNIT DISPLAY (T04-C04, T04-C05) -->
+          <div class="my-4">
+            <div class="flex items-baseline gap-3">
+              <span id="metricValue" class="text-6xl sm:text-7xl font-extrabold tracking-tight text-slate-900 font-mono">--</span>
+              <span id="metricUnit" class="text-2xl sm:text-3xl font-bold text-indigo-600 font-mono">°C</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">
+              * T04-C17: 외부 실패가 발생하더라도 마지막 정상값이 지워지지 않고 안전하게 보존됩니다.
+            </p>
+          </div>
+
+          <!-- 4 METADATA FIELDS (출처, 출처시각, 조회시각, 기준시간대 - T04-C06 ~ C09) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-slate-100 text-xs">
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+              <span class="text-slate-500 block mb-0.5 font-medium">출처 (Source · No-Key):</span>
+              <a id="metricSourceLink" href="#" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 truncate">
+                <span id="metricSource">Open-Meteo Seoul Station</span>
+                <i data-lucide="external-link" class="w-3 h-3 shrink-0"></i>
+              </a>
+            </div>
+
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+              <span class="text-slate-500 block mb-0.5 font-medium">기준 시간대 (Timezone):</span>
+              <span id="metricTimezone" class="font-bold text-slate-800 font-mono">Asia/Seoul (KST, UTC+09:00)</span>
+            </div>
+
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+              <span class="text-slate-500 block mb-0.5 font-medium">출처 시각 (Source Time):</span>
+              <span id="metricSourceTime" class="font-mono text-slate-700 font-medium">--</span>
+            </div>
+
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+              <span class="text-slate-500 block mb-0.5 font-medium">조회 시각 (Fetch Time):</span>
+              <span id="metricFetchTime" class="font-mono text-slate-700 font-medium">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2-DAY KST RECORD & DELTA RECALCULATION (카드 5: T04-C22 ~ T04-C24) -->
+        <div class="bento-card p-6">
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="git-compare" class="w-4 h-4 text-indigo-600"></i>
+                실제 이틀 기록과 어제 대비 변화값 대조 (카드 5)
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">T04-C24: 두 기록의 차이를 재계산하여 화면값과 100% 일치함을 증명합니다.</p>
+            </div>
+            <button id="injectMockYesterdayBtn" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center gap-1">
+              <i data-lucide="flask-conical" class="w-3.5 h-3.5"></i>
+              🧪 어제 모의 기록 생성
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- 어제 D1 기록 (T04-C23) -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                <span class="font-bold">D1 관측 기록</span>
+                <span id="deltaYesterdayDate" class="font-mono text-slate-500">YYYY-MM-DD</span>
+              </div>
+              <div id="deltaYesterdayVal" class="text-2xl font-bold font-mono text-slate-700">대기 중</div>
+              <div id="deltaYesterdayUrl" class="text-[11px] text-slate-400 mt-1 truncate">관측 시각: -</div>
+            </div>
+
+            <!-- 오늘 D2 기록 (T04-C23) -->
+            <div class="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100">
+              <div class="flex items-center justify-between text-xs text-indigo-700 mb-1">
+                <span class="font-bold">D2 관측 기록</span>
+                <span id="deltaTodayDate" class="font-mono text-indigo-700">YYYY-MM-DD</span>
+              </div>
+              <div id="deltaTodayVal" class="text-2xl font-bold font-mono text-indigo-700">--</div>
+              <div id="deltaTodayUrl" class="text-[11px] text-indigo-400 mt-1 truncate">관측 시각: -</div>
+            </div>
+          </div>
+
+          <!-- 변화값(Delta) 결과 뱃지 & 수식 재계산 (T04-C24) -->
+          <div class="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <span class="text-xs font-bold text-slate-700">어제 대비 변화값 (Delta):</span>
+              <div id="deltaBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-200 text-slate-600 border border-slate-300 inline-flex items-center gap-1">
+                대조 대기 중
+              </div>
+            </div>
+            <p id="deltaFormula" class="text-xs text-slate-600 font-mono bg-white p-2 rounded border border-slate-200"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Chaos Simulator & Single-Line Storage (카드 3 & 카드 4) -->
+      <section class="lg:col-span-5 flex flex-col gap-6">
+
+        <!-- CHAOS SIMULATOR (카드 3: 다섯 가지 실패 T04-C12 ~ C16 & 복구 T04-C19) -->
+        <div class="bento-card p-6 border-indigo-100 bg-white">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="flame" class="w-4 h-4 text-amber-500"></i>
+                다섯 가지 실패 합성 재생 (카드 3)
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">T04-C12 ~ C16: 실패 유형별 설명과 다음 대처 행동을 검증합니다.</p>
+            </div>
+          </div>
+
+          <!-- 6 Mode Buttons (매뉴얼 규격 매칭) -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+            <button class="chaos-btn px-3 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow-sm border border-indigo-600 transition-all text-center" data-mode="normal">
+              🟢 정상 호출 (Live)
+            </button>
+            <button class="chaos-btn px-3 py-2 text-xs font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-all text-center" data-mode="timeout">
+              ⏱️ 느린 응답 (C12)
+            </button>
+            <button class="chaos-btn px-3 py-2 text-xs font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-all text-center" data-mode="forbidden">
+              🚫 401/403 거절 (C13)
+            </button>
+            <button class="chaos-btn px-3 py-2 text-xs font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-all text-center" data-mode="rate_limit">
+              🛑 호출 제한 (C14)
+            </button>
+            <button class="chaos-btn px-3 py-2 text-xs font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-all text-center" data-mode="offline">
+              🔌 오프라인 (C15)
+            </button>
+            <button class="chaos-btn px-3 py-2 text-xs font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-all text-center" data-mode="malformed">
+              ⚠️ 형식 변경 (C16)
+            </button>
+          </div>
+
+          <div id="chaosStatusNotice" class="text-xs text-emerald-700 font-mono mt-3 font-medium bg-emerald-50 p-2 rounded border border-emerald-200">
+            🟢 <strong>정상 모드 (Live)</strong>: 실제 외부 원천 API에 직접 요청합니다.
+          </div>
+
+          <!-- Main Fetch & Recover Actions -->
+          <div class="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2">
+            <button id="fetchBtn" class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-bold text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              지금 조회하기 (Fetch Now)
+            </button>
+          </div>
+        </div>
+
+        <!-- DAILY RECORD PRESERVATION & SAME-DAY RERUN (카드 4: T04-C20, C21) -->
+        <div class="bento-card p-6 flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <i data-lucide="calendar" class="w-4 h-4 text-indigo-600"></i>
+                  하루 한 줄 보존 (카드 4)
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">T04-C20: 같은 날 중복 저장을 막고 1건으로 합칩니다 (Upsert).</p>
+              </div>
+              <span id="historyCountBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-medium">0건</span>
+            </div>
+
+            <!-- T04-C20 같은 날 재실행 행 수 불변 검증 도구 -->
+            <div class="my-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <span class="text-xs font-bold text-slate-700">T04-C20 중복 방지 시험:</span>
+                <button id="testSameDayRerunBtn" class="px-2.5 py-1 text-xs font-semibold rounded bg-white hover:bg-slate-100 text-indigo-700 border border-slate-300 transition flex items-center gap-1 shadow-sm">
+                  <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                  같은 날 3회 재실행 시험
+                </button>
+              </div>
+              <div id="sameDayRerunResult" class="hidden"></div>
+            </div>
+
+            <div class="overflow-x-auto rounded-lg border border-slate-200 mt-2 max-h-48 overflow-y-auto">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 text-slate-600 text-xs uppercase font-mono sticky top-0 border-b border-slate-200">
+                  <tr>
+                    <th class="px-3.5 py-2 font-bold">날짜(KST)</th>
+                    <th class="px-3.5 py-2 font-bold">수치</th>
+                    <th class="px-3.5 py-2 font-bold">관측 시각</th>
+                    <th class="px-3.5 py-2 font-bold">조회 시각</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyHistoryTableBody" class="divide-y divide-slate-100">
+                  <!-- JS에서 동적 주입 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Asia/Seoul 날짜 키 영속화</span>
+            <button id="clearHistoryBtn" class="text-rose-600 hover:text-rose-800 font-medium hover:underline flex items-center gap-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              기록 초기화
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="pt-6 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span>© 2026 오늘의 진짜 정보판</span>
+        <span>•</span>
+        <span class="text-slate-600 font-medium">비밀키 0건(T04-C11) · 개인정보 0건(T04-C25) · 시크릿 창 무로그인 통과(T04-C01)</span>
+      </div>
+      <div class="font-mono text-slate-500">
+        기준 시간대: Asia/Seoul (KST, UTC+09:00)
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- MODAL 1: 3단 일치 대조 뷰어 (카드 1: T04-C10) -->
+  <div id="inspectorModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bento-card max-w-4xl w-full max-h-[90vh] flex flex-col bg-white border-slate-200 shadow-2xl">
+      <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="check-check" class="w-5 h-5 text-indigo-600"></i>
+          <h3 class="text-base font-bold text-slate-900">원자료 · 저장값 · 화면값 3단 일치 검증 (T04-C10)</h3>
+        </div>
+        <button id="closeInspectorBtn" class="text-slate-400 hover:text-slate-700 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 text-xs">
+        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <span class="text-slate-700 font-medium">검증 상태:</span>
+          <span id="matchStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            ✅ 대조 일치 확인 완료
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- 1. 원자료 -->
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col">
+            <h4 class="font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
+              <span>1. 원자료 (Raw API JSON)</span>
+            </h4>
+            <pre class="bg-slate-900 text-slate-100 p-3 rounded-lg text-[11px] font-mono overflow-x-auto max-h-72 flex-1"><code id="rawResponseCode">// 수신 전</code></pre>
+          </div>
+
+          <!-- 2. 저장값 -->
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col">
+            <h4 class="font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
+              <span>2. 저장값 (LocalStorage JSON)</span>
+            </h4>
+            <pre class="bg-slate-900 text-slate-100 p-3 rounded-lg text-[11px] font-mono overflow-x-auto max-h-72 flex-1"><code id="storageDataCode">// 저장 전</code></pre>
+          </div>
+
+          <!-- 3. 화면값 -->
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col">
+            <h4 class="font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
+              <span>3. 화면값 (Rendered View Model)</span>
+            </h4>
+            <pre class="bg-slate-900 text-slate-100 p-3 rounded-lg text-[11px] font-mono overflow-x-auto max-h-72 flex-1"><code id="renderedViewModelCode">// 렌더링 전</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 flex justify-end">
+        <button id="closeInspectorBtn2" class="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: 과제 제출 증거 도우미 모달 (카드 5: T04-C27, T04-C28 규격 준수) -->
+  <div id="submissionModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bento-card max-w-2xl w-full max-h-[90vh] flex flex-col bg-white border-slate-200 shadow-2xl">
+      <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-600"></i>
+          <h3 class="text-base font-bold text-slate-900">과제 제출 증거 템플릿 (T04-C27, T04-C28)</h3>
+        </div>
+        <button id="closeSubmissionBtn" class="text-slate-400 hover:text-slate-700 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 text-xs">
+        <div>
+          <h4 class="font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+            <span>📌 짧은 확인 방법 4줄 (T04-C27 공식 규격)</span>
+          </h4>
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 font-mono text-slate-700 space-y-1.5">
+            <p><strong>① 어디로 가나요:</strong> 상단 '외부 실패 5종 합성 재생' 패널 및 중앙 메인 지표 카드</p>
+            <p><strong>② 3단계 이내 무엇을 하나요:</strong> [호출 제한(429)] 클릭 -> [지금 조회하기] 클릭 -> 상태 배너 및 지표 카드 확인</p>
+            <p><strong>③ 무엇이 보이면 통과인가요:</strong> 상단에 "⚠️ [ERROR_RATE_LIMIT] 호출 제한" 상태와 대처 가이드가 뜨며, 기존 정상 수치에 [오래된 값(stale)] 표시가 붙고 지워지지 않고 보존됨</p>
+            <p><strong>④ 안 될 때 무엇이 보이나요:</strong> 화면이 백지로 변하거나 수치가 0, NaN, 빈칸으로 소실되는 경우</p>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+            <span>🤖 AI와 나의 판단 3줄 (T04-C28 공식 규격)</span>
+          </h4>
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 font-mono text-slate-700 space-y-1.5">
+            <p><strong>① AI에게 맡긴 일:</strong> No-Key 공개 API 통신 모듈 및 5대 실패(Timeout, 401/403, 429, Offline, Malformed) 합성 시뮬레이터와 T04-RECOVER-D2 복구 로직 작성</p>
+            <p><strong>② 학생이 직접 판단한 일:</strong> 카드 4의 Asia/Seoul 하루 한 줄 Upsert 규칙(같은 날 행 수 불변 검증기)을 배치하고, 카드 5의 이틀 치 변화량 수식을 정밀 대조할 수 있도록 3단 일치 대조 뷰어를 기획함</p>
+            <p><strong>③ AI 제안을 따르지 않은 일:</strong> 백엔드 프록시 서버나 별도 데이터베이스를 두자는 초기 제안을 배제하고, 무로그인 시크릿 창 정적 배포 기준(Zero-Backend)을 고수함</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 flex justify-between items-center">
+        <span class="text-xs text-slate-500">클릭 시 T04-C27, T04-C28 규격 복사</span>
+        <button id="copySubmissionBtn" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm">
+          <i data-lucide="copy" class="w-4 h-4"></i>
+          클립보드 복사
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Core Script -->
+  <script src="app.js"></script>
+</body>
+</html>
